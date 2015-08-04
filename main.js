@@ -13,108 +13,103 @@ var interface_renderer = jade.compileFile("static/interface.jade");
 var not_found_renderer = jade.compileFile("static/404.jade");
 
 /* Instantiate HTTP server*/
-var http_server = http.createServer(function(request, response)
+var http_server = http.createServer(function(request, response) {
+	console.log(getTimeStamp(), request.method, "request received to URL", request.url, "from IP", request.connection.remoteAddress);
+
+	/* Serve appropriate files directly from the filesystem */
+	if(filesystem_whitelist[request.url])
 	{
-		console.log(getTimeStamp(), request.method, "request received to URL", request.url, "from IP", request.connection.remoteAddress);
-
-		/* Serve appropriate files directly from the filesystem */
-		if(filesystem_whitelist[request.url])
-		{
-			/* Serve the file if we can read it, otherwise serve an internal server error */
-			fs.readFile("static/" + request.url, function(err, data)
-				{
-					if(err)
-					{
-						var text = "Something went wrong. Please try again later.";
-
-						response.writeHead(500, {"Content-Length": text.length, "Content-Type": "text/plain"});
-						response.end(text);
-					}
-					else
-					{
-						/* Use appropriate MIME type */
-						response.writeHead(200, {"Content-Length": data.length, "Content-Type": filesystem_whitelist[request.url]});
-						response.end(data);
-					}
-				});
-		}
-		else if(request.url == "/") /* Requests to the root mean interaction with the UI */
-		{
-			/* A POST request should mean a successfully submitted form */
-			if(request.method == "POST")
+		/* Serve the file if we can read it, otherwise serve an internal server error */
+		fs.readFile("static/" + request.url, function(err, data) {
+			if(err)
 			{
-				/* Buffer POST data */
-				var raw = "";
-				request.on("data", function(chunk){ raw += chunk.toString(); })
+				var text = "Something went wrong. Please try again later.";
 
-				/* Parse and process data when we're done receiving */
-				request.on("end", function()
-					{
-						/* Parse */
-						var post_data = qs.parse(raw);
+				response.writeHead(500, {"Content-Length": text.length, "Content-Type": "text/plain"});
+				response.end(text);
+			}
+			else
+			{
+				/* Use appropriate MIME type */
+				response.writeHead(200, {"Content-Length": data.length, "Content-Type": filesystem_whitelist[request.url]});
+				response.end(data);
+			}
+		});
+	}
+	else if(request.url == "/") /* Requests to the root mean interaction with the UI */
+	{
+		/* A POST request should mean a successfully submitted form */
+		if(request.method == "POST")
+		{
+			/* Buffer POST data */
+			var raw = "";
+			request.on("data", function(chunk){ raw += chunk.toString(); })
 
-						/* If we have a non-empty url... */
-						if(post_data.url)
-						{
-							/* Make sure it actually has a protocol. It might be mangled but whatever */
-							var original_url = (post_data.url.indexOf(":") == -1) ? "http://" + post_data.url : post_data.url;
+			/* Parse and process data when we're done receiving */
+			request.on("end", function() {
+				/* Parse */
+				var post_data = qs.parse(raw);
 
-							/* Insert the URL into the DB and construct the shortened URL */
-							insertURL(original_url, function(err, identifier)
-								{
-									if(err) /* Failure */
-									{
-										var response_text = interface_renderer({shortened: false, failure: true});
-										response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
-										response.end(response_text);
-									}
-									else
-									{
-										var shortened_url = "http://" + request.headers.host + "/" + identifier;
+				/* If we have a non-empty url... */
+				if(post_data.url)
+				{
+					/* Make sure it actually has a protocol. It might be mangled but whatever */
+					var original_url = (post_data.url.indexOf(":") == -1) ? "http://" + post_data.url : post_data.url;
 
-										var response_text = interface_renderer(
-											{shortened: true, "original_url": original_url, "shortened_url": shortened_url});
-										response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
-										response.end(response_text);
-									}
-								});
-						}
-						else /* Failure */
+					/* Insert the URL into the DB and construct the shortened URL */
+					insertURL(original_url, function(err, identifier) {
+						if(err) /* Failure */
 						{
 							var response_text = interface_renderer({shortened: false, failure: true});
 							response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
 							response.end(response_text);
 						}
-					});
-			}
-			else /* If it's not POST, just serve the static interface */
-			{
-				var response_text = interface_renderer({shortened: false});
+						else
+						{
+							var shortened_url = "http://" + request.headers.host + "/" + identifier;
 
-				response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+							var response_text = interface_renderer(
+								{shortened: true, "original_url": original_url, "shortened_url": shortened_url});
+							response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+							response.end(response_text);
+						}
+					});
+				}
+				else /* Failure */
+				{
+					var response_text = interface_renderer({shortened: false, failure: true});
+					response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+					response.end(response_text);
+				}
+			});
+		}
+		else /* If it's not POST, just serve the static interface */
+		{
+			var response_text = interface_renderer({shortened: false});
+
+			response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+			response.end(response_text);
+		}
+	}
+	else /* Any other request is an attempt to access a shortened URL */
+	{
+		var identifier = request.url.substring(1);
+
+		fetchURL(identifier, function(err, url) {
+			if(err)
+			{
+				var response_text = not_found_renderer({});
+				response.writeHead(404, {"Content-Length": response_text.length, "Content-Type": "text/html"});
 				response.end(response_text);
 			}
-		}
-		else /* Any other request is an attempt to access a shortened URL */
-		{
-			var identifier = request.url.substring(1);
-
-			fetchURL(identifier, function(err, url)
-				{
-					if(err)
-					{
-						var response_text = not_found_renderer({});
-						response.writeHead(404, {"Content-Length": response_text.length, "Content-Type": "text/html"});
-						response.end(response_text);
-					}
-					else
-					{
-						response.writeHead(303, {"Location": url});
-						response.end();
-					}
-				});
-		}
-	});
+			else
+			{
+				response.writeHead(303, {"Location": url});
+				response.end();
+			}
+		});
+	}
+});
 
 var url_key_prefix = "URL_KEY_";
 
@@ -164,28 +159,25 @@ function insertURL(url, callback)
 	/* Connect to redis server */
 	var client = redis.createClient();
 
-	var insertURLInternal = function(url, callback)
-		{
-			/* Generate random identifier */
-			var identifier = getRandomIdentifier(8);
+	var insertURLInternal = function(url, callback) {
+		/* Generate random identifier */
+		var identifier = getRandomIdentifier(8);
 
-			/* Check if the key already exists */
-			client.exists(url_key_prefix + identifier, function(err, reply)
-				{
+		/* Check if the key already exists */
+		client.exists(url_key_prefix + identifier, function(err, reply) {
+			if(err) callback(err, null); /* Propagate error */
+			else if(reply == 1) insertURLInternal(url, callback); /* Retry if key exists */
+			else /* Otherwise, insert */
+			{
+				client.set([url_key_prefix + identifier, url], function(err, reply) {
+					client.quit();
+
 					if(err) callback(err, null); /* Propagate error */
-					else if(reply == 1) insertURLInternal(url, callback); /* Retry if key exists */
-					else /* Otherwise, insert */
-					{
-						client.set([url_key_prefix + identifier, url], function(err, reply)
-							{
-								client.quit();
-
-								if(err) callback(err, null); /* Propagate error */
-								else callback(null, identifier); /* Successful insertion! */
-							});
-					}
+					else callback(null, identifier); /* Successful insertion! */
 				});
-		};
+			}
+		});
+	};
 
 	insertURLInternal(url, callback);
 }
@@ -197,14 +189,13 @@ function fetchURL(id, callback)
 	var client = redis.createClient();
 
 	/* Query the DB */
-	client.get(url_key_prefix + id, function(err, reply)
-		{
-			/* Quit */
-			client.quit();
+	client.get(url_key_prefix + id, function(err, reply) {
+		/* Quit */
+		client.quit();
 
-			if(err || !reply) callback(err || true, null); /* Propagate error */
-			else callback(null, reply); /* Succesful retrieval */
-		})
+		if(err || !reply) callback(err || true, null); /* Propagate error */
+		else callback(null, reply); /* Succesful retrieval */
+	});
 }
 
 /* Listen for HTTP requests */
