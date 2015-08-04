@@ -152,17 +152,21 @@ function getTimeStamp(date)
 /* Returns a random string of URL-safe characters of a given length */
 function getRandomIdentifier(length)
 {
-	/* Extra character on the end because of paranoia over rounding */
-	/* Also not using the full alphabet before of paranoia over slurs */
+	/* Extra character on the end because of paranoia over rounding
+	 * Also not using the full alphabet because of paranoia over slurs */
 	var legal_characters = "abcdefgxyzABCDEFGXYZ0123456789_ ";
 
-	/* Build this string */
+	/* Build the string */
 	var string = "";
 	for(var i = 0; i < length; i ++)
-		string += legal_characters[Math.floor(Math.random() * (legal_characters.length - 1))]; /* -1 for paranoia */
+		/* -1 for paranoia */
+		string += legal_characters[Math.floor(Math.random() * (legal_characters.length - 1))];
 
 	return string;
 }
+
+/* insertURL and fetchURL both instantiate and close their own redis connections.
+ * We don't use redis for anything else and (in principle) we only make at most one query per connection. */
 
 /* Inserts a given URL into the redis URL DB and calls the callback with params (err, identifier) */
 function insertURL(url, callback)
