@@ -1,0 +1,20 @@
+extends ./layout.jade
+
+block title
+	title rcode URL Shortener
+
+block header
+	h1 rcode URL Shortener
+
+block content
+	if shortened
+		p Your #[a(href="#{original_url}") link] has been successfully shortened to #[a(href="#{shortened_url}") #{shortened_url}]
+	else
+		if failure
+			p Something went wrong in shortening your link. Please try again.
+		else
+			p Please enter a link to be shortened.
+		form(action="" method="post")
+			input(name="url" type="text" placeholder="URL")
+			br
+			input(type="submit")
