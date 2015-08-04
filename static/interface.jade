@@ -8,7 +8,7 @@ block header
 
 block content
 	if shortened
-		p Your #[a(href="#{original_url}") link] has been successfully shortened to #[a(href="#{shortened_url}") #{shortened_url}]
+		p Your #[a(href="#{original_url}") link] has been successfully shortened to #[a(href="#{shortened_url}") #{shortened_url}].
 	else
 		if failure
 			p Something went wrong in shortening your link. Please try again.
@@ -16,5 +16,4 @@ block content
 			p Please enter a link to be shortened.
 		form(action="" method="post")
 			input(name="url" type="text" placeholder="URL")
-			br
 			input(type="submit")

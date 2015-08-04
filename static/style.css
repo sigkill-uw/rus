@@ -77,7 +77,14 @@ ul
 	border-bottom: 1px solid #aaa;
 }
 
-input
+input[type="text"]
 {
-	margin: 5px;
+	font-size: 1.5em;
+	width: 60%;
+	border: 1px solid #777;
+}
+
+input[type="submit"]
+{
+	font-size: 1.5em;
 }

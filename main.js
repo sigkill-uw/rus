@@ -72,6 +72,8 @@ var http_server = http.createServer(function(request, response) {
 								{shortened: true, "original_url": original_url, "shortened_url": shortened_url});
 							response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
 							response.end(response_text);
+
+							console.log(getTimeStamp(), "Map created from", original_url, "to", "/" + identifier);
 						}
 					});
 				}
@@ -93,24 +95,33 @@ var http_server = http.createServer(function(request, response) {
 	}
 	else /* Any other request is an attempt to access a shortened URL */
 	{
+		/* Trim leading '/' */
 		var identifier = request.url.substring(1);
 
+		/* Fetch the associated URL for the identifier */
 		fetchURL(identifier, function(err, url) {
 			if(err)
 			{
+				/* Assume errors are 404 */
 				var response_text = not_found_renderer({});
 				response.writeHead(404, {"Content-Length": response_text.length, "Content-Type": "text/html"});
 				response.end(response_text);
+
+				console.log(getTimeStamp(), "Unsuccessful request to redirect", request.url);
 			}
 			else
 			{
-				response.writeHead(303, {"Location": url});
+				/* Redirect to the appropriate location */
+				response.writeHead(301, {"Location": url});
 				response.end();
+
+				console.log(getTimeStamp(), "Successful request to redirect", request.url);
 			}
 		});
 	}
 });
 
+/* Prefix for redis URL keys */
 var url_key_prefix = "URL_KEY_";
 
 /* Returns a timestamp string [dd/mm/yyyy hh:mm:ss] for a given date */
