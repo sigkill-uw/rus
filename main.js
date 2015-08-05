@@ -17,7 +17,7 @@ var http_server = http.createServer(function(request, response) {
 	console.log(getTimeStamp(), request.method, "request received to URL", request.url, "from IP", request.connection.remoteAddress);
 
 	/* Serve appropriate files directly from the filesystem */
-	if(filesystem_whitelist[request.url])
+	if(request.url in filesystem_whitelist)
 	{
 		/* Serve the file if we can read it, otherwise serve an internal server error */
 		fs.readFile("static/" + request.url, function(err, data) {
@@ -36,10 +36,10 @@ var http_server = http.createServer(function(request, response) {
 			}
 		});
 	}
-	else if(request.url == "/") /* Requests to the root mean interaction with the UI */
+	else if(request.url === "/") /* Requests to the root mean interaction with the UI */
 	{
 		/* A POST request should mean a successfully submitted form */
-		if(request.method == "POST")
+		if(request.method === "POST")
 		{
 			/* Buffer POST data */
 			var raw = "";
@@ -54,7 +54,7 @@ var http_server = http.createServer(function(request, response) {
 				if(post_data.url)
 				{
 					/* Make sure it actually has a protocol. It might be mangled but whatever */
-					var original_url = (post_data.url.indexOf(":") == -1) ? "http://" + post_data.url : post_data.url;
+					var original_url = (post_data.url.indexOf(":") === -1) ? "http://" + post_data.url : post_data.url;
 
 					/* Insert the URL into the DB and construct the shortened URL */
 					insertURL(original_url, function(err, identifier) {
@@ -181,7 +181,7 @@ function insertURL(url, callback)
 		/* Check if the key already exists */
 		client.exists(url_key_prefix + identifier, function(err, reply) {
 			if(err) callback(err, null); /* Propagate error */
-			else if(reply == 1) insertURLInternal(url, callback); /* Retry if key exists */
+			else if(reply === 1) insertURLInternal(url, callback); /* Retry if key exists */
 			else /* Otherwise, insert */
 			{
 				client.set([url_key_prefix + identifier, url], function(err, reply) {
