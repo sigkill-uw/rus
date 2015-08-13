@@ -8,9 +8,18 @@ var redis = require("redis");
 /* Requests to be served directly from the filesystem (w/ corresponding MIME type) */
 var filesystem_whitelist = {"/style.css": "text/css", "/favicon.ico": "image/x-icon"};
 
-/* Jade renderers for the UI */
-var interface_renderer = jade.compileFile("static/interface.jade");
-var not_found_renderer = jade.compileFile("static/404.jade");
+/* Jade renderers for the UI
+ * This body of code has been altered, after I believed rus to be a finished product
+ * Having learned some lessons from ssf, I now know to be more careful with my encodings
+ * Wrapping the below renderers fixes (to the best of my knowledge) any bugs that were present */
+var ir = jade.compileFile("static/interface.jade");
+var nfr = jade.compileFile("static/404.jade");
+var interface_renderer = function(params) { return new Buffer(ir(params)); };
+var not_found_renderer = function(params) { return new Buffer(nfr(params)); };
+
+/* redis client */
+var client = redis.createClient();
+client.on("error", function(e) { console.log(getTimeStamp(), "redis error:", e.toString()); });
 
 /* Instantiate HTTP server*/
 var http_server = http.createServer(function(request, response) {
@@ -171,9 +180,6 @@ function getRandomIdentifier(length)
 /* Inserts a given URL into the redis URL DB and calls the callback with params (err, identifier) */
 function insertURL(url, callback)
 {
-	/* Connect to redis server */
-	var client = redis.createClient();
-
 	var insertURLInternal = function(url, callback) {
 		/* Generate random identifier */
 		var identifier = getRandomIdentifier(8);
@@ -185,8 +191,6 @@ function insertURL(url, callback)
 			else /* Otherwise, insert */
 			{
 				client.set([url_key_prefix + identifier, url], function(err, reply) {
-					client.quit();
-
 					if(err) callback(err, null); /* Propagate error */
 					else callback(null, identifier); /* Successful insertion! */
 				});
@@ -200,14 +204,8 @@ function insertURL(url, callback)
 /* Fetches a given URL based on identifier and calls the callback with params (err, url) */
 function fetchURL(id, callback)
 {
-	/* Connect to redis server */
-	var client = redis.createClient();
-
 	/* Query the DB */
 	client.get(url_key_prefix + id, function(err, reply) {
-		/* Quit */
-		client.quit();
-
 		if(err || !reply) callback(err || true, null); /* Propagate error */
 		else callback(null, reply); /* Succesful retrieval */
 	});
