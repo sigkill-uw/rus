@@ -62,29 +62,39 @@ var http_server = http.createServer(function(request, response) {
 				/* If we have a non-empty url... */
 				if(post_data.url)
 				{
-					/* Make sure it actually has a protocol. It might be mangled but whatever */
-					var original_url = (post_data.url.indexOf(":") === -1) ? "http://" + post_data.url : post_data.url;
+					/* Check protocol with parseUri */
+					var proto = parseUri(post_data.url).protocol;
+					if(proto.toLowerCase() === "javascript") /* No JS */
+					{
+						var response_text = interface_renderer({shortened: false, failure: true});
+						response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+						response.end(response_text);
+					}
+					else
+					{
+						var original_url = proto ? post_data.url : "http://" + post_data.url;
 
-					/* Insert the URL into the DB and construct the shortened URL */
-					insertURL(original_url, function(err, identifier) {
-						if(err) /* Failure */
-						{
-							var response_text = interface_renderer({shortened: false, failure: true});
-							response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
-							response.end(response_text);
-						}
-						else
-						{
-							var shortened_url = "http://" + request.headers.host + "/" + identifier;
+						/* Insert the URL into the DB and construct the shortened URL */
+						insertURL(original_url, function(err, identifier) {
+							if(err) /* Failure */
+							{
+								var response_text = interface_renderer({shortened: false, failure: true});
+								response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+								response.end(response_text);
+							}
+							else
+							{
+								var shortened_url = "http://" + request.headers.host + "/" + identifier;
 
-							var response_text = interface_renderer(
-								{shortened: true, "original_url": original_url, "shortened_url": shortened_url});
-							response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
-							response.end(response_text);
+								var response_text = interface_renderer(
+									{shortened: true, "original_url": original_url, "shortened_url": shortened_url});
+								response.writeHead(200, {"Content-Length": response_text.length, "Content-Type": "text/html"});
+								response.end(response_text);
 
-							console.log(getTimeStamp(), "Map created from", original_url, "to", "/" + identifier);
-						}
-					});
+								console.log(getTimeStamp(), "Map created from", original_url, "to", "/" + identifier);
+							}
+						});
+					}
 				}
 				else /* Failure */
 				{
@@ -213,3 +223,40 @@ function fetchURL(id, callback)
 
 /* Listen for HTTP requests */
 http_server.listen(32600);
+
+/* Duplicated below verbatim is the parseUri function by Steven Levithan
+ * <http://blog.stevenlevithan.com/archives/parseuri>
+ * Also licensed under the MIT license */
+// parseUri 1.2.2
+// (c) Steven Levithan <stevenlevithan.com>
+// MIT License
+
+function parseUri (str) {
+	var	o   = parseUri.options,
+		m   = o.parser[o.strictMode ? "strict" : "loose"].exec(str),
+		uri = {},
+		i   = 14;
+
+	while (i--) uri[o.key[i]] = m[i] || "";
+
+	uri[o.q.name] = {};
+	uri[o.key[12]].replace(o.q.parser, function ($0, $1, $2) {
+		if ($1) uri[o.q.name][$1] = $2;
+	});
+
+	return uri;
+};
+
+parseUri.options = {
+	strictMode: false,
+	key: ["source","protocol","authority","userInfo","user","password","host","port","relative","path","directory","file","query","anchor"],
+	q:   {
+		name:   "queryKey",
+		parser: /(?:^|&)([^&=]*)=?([^&]*)/g
+	},
+	parser: {
+		strict: /^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?))?((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/,
+		loose:  /^(?:(?![^:@]+:[^:@\/]*@)([^:\/?#.]+):)?(?:\/\/)?((?:(([^:@]*)(?::([^:@]*))?)?@)?([^:\/?#]*)(?::(\d*))?)(((\/(?:[^?#](?![^?#\/]*\.[^?#\/.]+(?:[?#]|$)))*\/?)?([^?#\/]*))(?:\?([^#]*))?(?:#(.*))?)/
+	}
+};
+
